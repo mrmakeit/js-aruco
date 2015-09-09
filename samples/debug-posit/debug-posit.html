@@ -12,6 +12,7 @@
 
   <script>
     var video, canvas, context, imageData, detector, posit;
+		var modelVideo, modelVideoImage, modelVideoImageContext, modelVideoTexture;
     var renderer1, renderer2, renderer3;
     var scene1, scene2, scene3, scene4;
     var camera1, camera2, camera3, camera4;
@@ -35,19 +36,21 @@
     };
     
     function init(){
-      navigator.getUserMedia({video:true}, 
-        function (stream){
-          if (window.webkitURL) {
-            video.src = window.webkitURL.createObjectURL(stream);
-          } else if (video.mozSrcObject !== undefined) {
-            video.mozSrcObject = stream;
-          } else {
-            video.src = stream;
-          }
-        },
-        function(error){
-        }
-      );
+			MediaStreamTrack.getSources(function(sources){
+				navigator.getUserMedia({video:{optional:[{sourceId:sources[4].id}]}}, 
+					function (stream){
+						if (window.webkitURL) {
+							video.src = window.webkitURL.createObjectURL(stream);
+						} else if (video.mozSrcObject !== undefined) {
+							video.mozSrcObject = stream;
+						} else {
+							video.src = stream;
+						}
+					},
+					function(error){
+					}
+				);
+			});
       
       detector = new AR.Detector();
       posit = new POS.Posit(modelSize, canvas.width);
@@ -61,6 +64,11 @@
     function tick(){
       requestAnimationFrame(tick);
       
+			if (modelVideo.readyState === modelVideo.HAVE_ENOUGH_DATA){
+				modelVideoImageContext.drawImage( modelVideo, 0, 0 );
+				if(modelVideoTexture)
+					modelVideoTexture.needsUpdate = true;
+			}
       if (video.readyState === video.HAVE_ENOUGH_DATA){
         snapshot();
 
@@ -187,10 +195,23 @@
     };
     
     function createModel(){
+			modelVideo = document.createElement('video')
+			modelVideo.loop = true;
+			modelVideo.src = "small.mp4";
+			modelVideo.load();
+			modelVideo.play();
+			modelVideoImage = document.createElement( 'canvas' );
+			modelVideoImage.width = 480;
+			modelVideoImage.height = 204;
+
+			modelVideoImageContext = modelVideoImage.getContext( '2d' );
+			// background color if no video present
+			modelVideoImageContext.fillStyle = '#000000';
+			modelVideoImageContext.fillRect( 0, 0, modelVideoImage.width, modelVideoImage.height );
+			modelVideoTexture = new THREE.Texture(modelVideoImage);
       var object = new THREE.Object3D(),
-          geometry = new THREE.SphereGeometry(0.5, 15, 15, Math.PI),
-          texture = THREE.ImageUtils.loadTexture("textures/earth.jpg"),
-          material = new THREE.MeshBasicMaterial( {map: texture} ),
+          geometry = new THREE.PlaneGeometry(1.0, 1.0, 0.0),
+          material = new THREE.MeshBasicMaterial( {map: modelVideoTexture} ),
           mesh = new THREE.Mesh(geometry, material);
       
       object.add(mesh);
@@ -220,9 +241,6 @@
         updatePose("pose1", pose.bestError, pose.bestRotation, pose.bestTranslation);
         updatePose("pose2", pose.alternativeError, pose.alternativeRotation, pose.alternativeTranslation);
         
-        step += 0.025;
-        
-        model.rotation.z -= step;
       }
       
       texture.children[0].material.map.needsUpdate = true;
@@ -259,7 +277,7 @@
                   + " roll: " + Math.round(roll * 180.0/Math.PI);
     };
 
-    window.onload = onLoad;
+    window.onclick = onLoad;
   </script>
 
 </head>
